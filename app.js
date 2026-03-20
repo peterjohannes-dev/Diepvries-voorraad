@@ -1,7 +1,7 @@
 // ===== Supabase Config =====
 const SUPABASE_URL = 'https://tpeoknoqfkixafqjxqcw.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwZW9rbm9xZmtpeGFmcWp4cWN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMTI2OTAsImV4cCI6MjA4OTU4ODY5MH0.c6-7-CT7nyzfcGMiyGr03EdZvKplx9NBvKlxiNvjIHE';
-const PIN_CODE = '1234';
+const PIN_CODE = '3523';
 
 // ===== Supabase REST helper =====
 async function supabase(table, { method = 'GET', filters = '', body = null, select = '*', order = '' } = {}) {
