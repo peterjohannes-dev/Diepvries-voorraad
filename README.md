@@ -1,6 +1,6 @@
 # 🧊 Diepvries Voorraad
 
-Een simpele webapp om de inhoud van je diepvries bij te houden.
+Een simpele webapp om de inhoud van je diepvries bij te houden. Gehost via GitHub Pages met een Supabase database.
 
 ## Functies
 
@@ -9,33 +9,8 @@ Een simpele webapp om de inhoud van je diepvries bij te houden.
 - Houdbaarheidsdatum bijhouden met waarschuwingen
 - Statistieken dashboard
 - Beveiligd met pincode
+- Gedeelde database — meerdere gebruikers kunnen dezelfde voorraad bekijken en bewerken
 
-## Installatie
+## Pincode
 
-```bash
-npm install
-```
-
-## Starten
-
-```bash
-npm start
-```
-
-De app draait standaard op `http://localhost:3000`.
-
-## Configuratie
-
-Via omgevingsvariabelen:
-
-| Variabele | Standaard | Beschrijving |
-|-----------|-----------|--------------|
-| `PORT` | `3000` | Server poort |
-| `PIN` | `1234` | Inlogpincode |
-| `SESSION_SECRET` | (ingebouwd) | Sessie encryptie |
-
-Voorbeeld:
-
-```bash
-PIN=5678 npm start
-```
+De standaard pincode is `1234`. Deze kun je wijzigen in `app.js` (regel 3: `PIN_CODE`).

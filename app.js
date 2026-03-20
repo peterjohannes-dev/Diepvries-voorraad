@@ -1,3 +1,34 @@
+// ===== Supabase Config =====
+const SUPABASE_URL = 'https://tpeoknoqfkixafqjxqcw.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwZW9rbm9xZmtpeGFmcWp4cWN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMTI2OTAsImV4cCI6MjA4OTU4ODY5MH0.c6-7-CT7nyzfcGMiyGr03EdZvKplx9NBvKlxiNvjIHE';
+const PIN_CODE = '1234';
+
+// ===== Supabase REST helper =====
+async function supabase(table, { method = 'GET', filters = '', body = null, select = '*', order = '' } = {}) {
+  const headers = {
+    'apikey': SUPABASE_KEY,
+    'Authorization': `Bearer ${SUPABASE_KEY}`,
+    'Content-Type': 'application/json',
+    'Prefer': method === 'POST' ? 'return=representation' : method === 'PATCH' ? 'return=representation' : ''
+  };
+
+  let url = `${SUPABASE_URL}/rest/v1/${table}?select=${select}`;
+  if (filters) url += `&${filters}`;
+  if (order) url += `&order=${order}`;
+
+  const options = { method, headers };
+  if (body) options.body = JSON.stringify(body);
+
+  const res = await fetch(url, options);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'Database fout');
+  }
+
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
 // ===== State =====
 let currentItems = [];
 let deleteItemId = null;
@@ -21,17 +52,11 @@ const itemForm = document.getElementById('item-form');
 const modalTitle = document.getElementById('modal-title');
 const formSubmitBtn = document.getElementById('form-submit-btn');
 
-// ===== Auth =====
-async function checkAuth() {
-  try {
-    const res = await fetch('/api/auth-check');
-    const data = await res.json();
-    if (data.authenticated) {
-      showApp();
-    } else {
-      showLogin();
-    }
-  } catch {
+// ===== Auth (simple PIN stored in sessionStorage) =====
+function checkAuth() {
+  if (sessionStorage.getItem('authenticated') === 'true') {
+    showApp();
+  } else {
     showLogin();
   }
 }
@@ -49,99 +74,69 @@ function showApp() {
   loadData();
 }
 
-async function login() {
+function login() {
   const pin = pinInput.value;
   if (!pin) return;
 
-  loginBtn.disabled = true;
-  loginBtn.textContent = 'Bezig...';
-
-  try {
-    const res = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin })
-    });
-
-    if (res.ok) {
-      loginError.classList.add('hidden');
-      showApp();
-    } else {
-      loginError.classList.remove('hidden');
-      pinInput.value = '';
-      pinInput.focus();
-      pinInput.classList.add('shake');
-      setTimeout(() => pinInput.classList.remove('shake'), 500);
-    }
-  } catch {
-    showToast('Verbindingsfout', 'error');
-  } finally {
-    loginBtn.disabled = false;
-    loginBtn.textContent = 'Inloggen';
+  if (pin === PIN_CODE) {
+    sessionStorage.setItem('authenticated', 'true');
+    loginError.classList.add('hidden');
+    showApp();
+  } else {
+    loginError.classList.remove('hidden');
+    pinInput.value = '';
+    pinInput.focus();
   }
 }
 
-async function logout() {
-  await fetch('/api/logout', { method: 'POST' });
+function logout() {
+  sessionStorage.removeItem('authenticated');
   showLogin();
 }
 
 // ===== Data Loading =====
 async function loadData() {
-  await Promise.all([loadItems(), loadStats(), loadCategories()]);
+  await Promise.all([loadItems(), loadCategories()]);
+  updateStats();
 }
 
 async function loadItems() {
-  const search = searchInput.value;
+  const search = searchInput.value.trim();
   const category = categoryFilter.value;
   const sort = sortSelect.value;
 
-  const params = new URLSearchParams();
-  if (search) params.set('search', search);
-  if (category) params.set('category', category);
-  if (sort) params.set('sort', sort);
+  let filters = '';
+  if (search) {
+    filters += `or=(name.ilike.*${encodeURIComponent(search)}*,notes.ilike.*${encodeURIComponent(search)}*)`;
+  }
+  if (category && category !== 'Alle') {
+    filters += (filters ? '&' : '') + `category=eq.${encodeURIComponent(category)}`;
+  }
+
+  let order = '';
+  switch (sort) {
+    case 'name': order = 'name.asc'; break;
+    case 'date': order = 'date_added.desc'; break;
+    case 'expiry': order = 'expiry_date.asc.nullslast'; break;
+    case 'category': order = 'category.asc,name.asc'; break;
+    default: order = 'updated_at.desc';
+  }
 
   try {
-    const res = await fetch(`/api/items?${params}`);
-    if (res.status === 401) return showLogin();
-    const items = await res.json();
+    const items = await supabase('items', { filters, order });
     currentItems = items;
     renderItems(items);
-  } catch {
-    showToast('Kon items niet laden', 'error');
+    updateStats();
+  } catch (e) {
+    showToast('Kon items niet laden: ' + e.message, 'error');
   }
-}
-
-async function loadStats() {
-  try {
-    const res = await fetch('/api/stats');
-    if (!res.ok) return;
-    const stats = await res.json();
-    document.getElementById('stat-items').textContent = stats.totalItems;
-    document.getElementById('stat-quantity').textContent = stats.totalQuantity;
-    document.getElementById('stat-categories').textContent = stats.totalCategories;
-
-    const expiringEl = document.getElementById('stat-expiring');
-    expiringEl.textContent = stats.expiringSoon + stats.expired;
-
-    const expiringCard = document.getElementById('stat-expiring-card');
-    if (stats.expired > 0) {
-      expiringCard.style.borderLeft = `4px solid ${getComputedStyle(document.documentElement).getPropertyValue('--danger')}`;
-    } else if (stats.expiringSoon > 0) {
-      expiringCard.style.borderLeft = `4px solid ${getComputedStyle(document.documentElement).getPropertyValue('--warning')}`;
-    } else {
-      expiringCard.style.borderLeft = '';
-    }
-  } catch {}
 }
 
 async function loadCategories() {
   try {
-    const res = await fetch('/api/categories');
-    if (!res.ok) return;
-    const categories = await res.json();
+    const items = await supabase('items', { select: 'category' });
+    const categories = [...new Set(items.map(i => i.category))].sort();
 
-    // Update filter dropdown
     const currentVal = categoryFilter.value;
     categoryFilter.innerHTML = '<option value="Alle">Alle categorieën</option>';
     categories.forEach(cat => {
@@ -152,7 +147,6 @@ async function loadCategories() {
     });
     categoryFilter.value = currentVal;
 
-    // Update datalist for form
     const datalist = document.getElementById('category-list');
     datalist.innerHTML = '';
     categories.forEach(cat => {
@@ -161,6 +155,33 @@ async function loadCategories() {
       datalist.appendChild(opt);
     });
   } catch {}
+}
+
+function updateStats() {
+  const items = currentItems;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const nextWeek = new Date(today);
+  nextWeek.setDate(nextWeek.getDate() + 7);
+
+  document.getElementById('stat-items').textContent = items.length;
+  document.getElementById('stat-quantity').textContent = items.reduce((sum, i) => sum + i.quantity, 0);
+  document.getElementById('stat-categories').textContent = new Set(items.map(i => i.category)).size;
+
+  let expiring = 0;
+  let expired = 0;
+  items.forEach(item => {
+    if (!item.expiry_date) return;
+    const exp = new Date(item.expiry_date + 'T00:00:00');
+    if (exp < today) expired++;
+    else if (exp <= nextWeek) expiring++;
+  });
+
+  document.getElementById('stat-expiring').textContent = expiring + expired;
+  const card = document.getElementById('stat-expiring-card');
+  if (expired > 0) card.style.borderLeft = '4px solid var(--danger)';
+  else if (expiring > 0) card.style.borderLeft = '4px solid var(--warning)';
+  else card.style.borderLeft = '';
 }
 
 // ===== Rendering =====
@@ -296,35 +317,40 @@ async function saveItem(e) {
 
   const id = document.getElementById('item-id').value;
   const data = {
-    name: document.getElementById('item-name').value,
-    category: document.getElementById('item-category').value || 'Overig',
+    name: document.getElementById('item-name').value.trim(),
+    category: document.getElementById('item-category').value.trim() || 'Overig',
     quantity: parseInt(document.getElementById('item-quantity').value) || 1,
     unit: document.getElementById('item-unit').value,
     expiry_date: document.getElementById('item-expiry').value || null,
-    notes: document.getElementById('item-notes').value
+    notes: document.getElementById('item-notes').value.trim() || null,
+    updated_at: new Date().toISOString()
   };
 
+  if (!data.name) {
+    showToast('Vul een productnaam in', 'error');
+    return;
+  }
+
   try {
-    const url = id ? `/api/items/${id}` : '/api/items';
-    const method = id ? 'PUT' : 'POST';
-
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-
-    if (res.status === 401) return showLogin();
-    if (!res.ok) {
-      const err = await res.json();
-      return showToast(err.error || 'Er ging iets mis', 'error');
+    if (id) {
+      await supabase('items', {
+        method: 'PATCH',
+        filters: `id=eq.${id}`,
+        body: data
+      });
+      showToast('Product bijgewerkt!', 'success');
+    } else {
+      data.date_added = new Date().toISOString().split('T')[0];
+      await supabase('items', {
+        method: 'POST',
+        body: data
+      });
+      showToast('Product toegevoegd!', 'success');
     }
-
     closeModal();
-    showToast(id ? 'Product bijgewerkt!' : 'Product toegevoegd!', 'success');
     loadData();
-  } catch {
-    showToast('Verbindingsfout', 'error');
+  } catch (e) {
+    showToast('Fout: ' + e.message, 'error');
   }
 }
 
@@ -332,15 +358,15 @@ async function deleteItem() {
   if (!deleteItemId) return;
 
   try {
-    const res = await fetch(`/api/items/${deleteItemId}`, { method: 'DELETE' });
-    if (res.status === 401) return showLogin();
-    if (!res.ok) return showToast('Kon item niet verwijderen', 'error');
-
+    await supabase('items', {
+      method: 'DELETE',
+      filters: `id=eq.${deleteItemId}`
+    });
     closeDeleteModal();
     showToast('Product verwijderd', 'success');
     loadData();
-  } catch {
-    showToast('Verbindingsfout', 'error');
+  } catch (e) {
+    showToast('Fout: ' + e.message, 'error');
   }
 }
 
@@ -377,11 +403,9 @@ searchInput.addEventListener('input', () => {
 categoryFilter.addEventListener('change', loadItems);
 sortSelect.addEventListener('change', loadItems);
 
-// Close modals on overlay click
 modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
 deleteOverlay.addEventListener('click', (e) => { if (e.target === deleteOverlay) closeDeleteModal(); });
 
-// Close modals on Escape
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     closeModal();
