@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diepvries Voorraad</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧊</text></svg>">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Login Screen -->
+  <div id="login-screen" class="screen">
+    <div class="login-container">
+      <div class="login-icon">🧊</div>
+      <h1>Diepvries Voorraad</h1>
+      <p class="login-subtitle">Voer je pincode in om verder te gaan</p>
+      <div class="pin-input-container">
+        <input type="password" id="pin-input" maxlength="10" placeholder="••••" autocomplete="off" inputmode="numeric">
+      </div>
+      <button id="login-btn" class="btn btn-primary btn-large">Inloggen</button>
+      <p id="login-error" class="error-text hidden">Onjuiste pincode</p>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="app-screen" class="screen hidden">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-content">
+        <div class="header-left">
+          <span class="header-icon">🧊</span>
+          <h1>Diepvries Voorraad</h1>
+        </div>
+        <button id="logout-btn" class="btn btn-ghost" title="Uitloggen">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+      <div class="stat-card">
+        <div class="stat-icon">📦</div>
+        <div class="stat-info">
+          <span class="stat-value" id="stat-items">0</span>
+          <span class="stat-label">Producten</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🔢</div>
+        <div class="stat-info">
+          <span class="stat-value" id="stat-quantity">0</span>
+          <span class="stat-label">Totaal stuks</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🏷️</div>
+        <div class="stat-info">
+          <span class="stat-value" id="stat-categories">0</span>
+          <span class="stat-label">Categorieën</span>
+        </div>
+      </div>
+      <div class="stat-card stat-warning" id="stat-expiring-card">
+        <div class="stat-icon">⏰</div>
+        <div class="stat-info">
+          <span class="stat-value" id="stat-expiring">0</span>
+          <span class="stat-label">Bijna verlopen</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="search-box">
+        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="search-input" placeholder="Zoeken..." autocomplete="off">
+      </div>
+      <select id="category-filter" class="select-input">
+        <option value="Alle">Alle categorieën</option>
+      </select>
+      <select id="sort-select" class="select-input">
+        <option value="recent">Laatst toegevoegd</option>
+        <option value="name">Naam (A-Z)</option>
+        <option value="category">Categorie</option>
+        <option value="expiry">Houdbaarheidsdatum</option>
+      </select>
+      <button id="add-btn" class="btn btn-primary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>Toevoegen</span>
+      </button>
+    </div>
+
+    <!-- Items Grid -->
+    <div id="items-container" class="items-grid">
+      <!-- Items loaded dynamically -->
+    </div>
+
+    <!-- Empty State -->
+    <div id="empty-state" class="empty-state hidden">
+      <div class="empty-icon">❄️</div>
+      <h2>Je diepvries is leeg</h2>
+      <p>Voeg je eerste product toe om te beginnen!</p>
+      <button class="btn btn-primary" onclick="openAddModal()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Product toevoegen
+      </button>
+    </div>
+  </div>
+
+  <!-- Add/Edit Modal -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modal-title">Product toevoegen</h2>
+        <button class="btn btn-ghost modal-close" onclick="closeModal()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <form id="item-form">
+        <input type="hidden" id="item-id">
+        <div class="form-group">
+          <label for="item-name">Productnaam *</label>
+          <input type="text" id="item-name" required placeholder="bijv. Kipfilet" autocomplete="off">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="item-category">Categorie</label>
+            <input type="text" id="item-category" list="category-list" placeholder="bijv. Vlees" autocomplete="off">
+            <datalist id="category-list"></datalist>
+          </div>
+          <div class="form-group">
+            <label for="item-quantity">Aantal</label>
+            <input type="number" id="item-quantity" min="1" value="1">
+          </div>
+          <div class="form-group">
+            <label for="item-unit">Eenheid</label>
+            <select id="item-unit">
+              <option value="stuks">stuks</option>
+              <option value="gram">gram</option>
+              <option value="kg">kg</option>
+              <option value="zakken">zakken</option>
+              <option value="dozen">dozen</option>
+              <option value="porties">porties</option>
+              <option value="bakjes">bakjes</option>
+              <option value="liter">liter</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="item-expiry">Houdbaar tot</label>
+          <input type="date" id="item-expiry">
+        </div>
+        <div class="form-group">
+          <label for="item-notes">Notities</label>
+          <textarea id="item-notes" rows="2" placeholder="Optionele notities..."></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuleren</button>
+          <button type="submit" class="btn btn-primary" id="form-submit-btn">Toevoegen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="delete-overlay" class="modal-overlay hidden">
+    <div class="modal modal-small">
+      <div class="modal-header">
+        <h2>Product verwijderen?</h2>
+      </div>
+      <p class="delete-message">Weet je zeker dat je <strong id="delete-item-name"></strong> wilt verwijderen?</p>
+      <div class="form-actions">
+        <button class="btn btn-ghost" onclick="closeDeleteModal()">Annuleren</button>
+        <button class="btn btn-danger" id="confirm-delete-btn">Verwijderen</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
